@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  DBT_SEND_ANONYMOUS_USAGE_STATS: "false"
+  GX_ANALYTICS_ENABLED: "false"
+  DUCKDB_PATH: warehouse/harbor_point.duckdb
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install
+        run: pip install -e ".[airflow,dev]"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Seed synthetic sources and legacy outputs
+        run: python -m datagen
+
+      - name: dbt build against DuckDB
+        run: dbt build --project-dir dbt --profiles-dir profiles
+
+      - name: Great Expectations checkpoint
+        run: python great_expectations/run_checkpoint.py
+
+      - name: Reconcile legacy vs dbt
+        run: python -m reconcile
+
+      - name: pytest (includes DAG parse and end-to-end reconciliation)
+        run: pytest
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: target/
