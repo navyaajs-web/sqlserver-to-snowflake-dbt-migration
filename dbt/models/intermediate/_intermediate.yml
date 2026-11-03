@@ -1,0 +1,36 @@
+version: 2
+
+models:
+  - name: int_transactions_enriched
+    description: Transactions with business date, posting flag, signed amount and home branch.
+    columns:
+      - name: transaction_id
+        data_tests: [unique, not_null]
+      - name: business_date
+        data_tests: [not_null]
+
+  - name: int_account_daily_net
+    description: Posted net change and posting count per account and business date.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [account_id, business_date]
+
+unit_tests:
+  - name: business_day_cutoff_moves_late_transactions_to_next_day
+    description: Rule R2. 19:59:59 stays on the day; 20:00:00 and later post the next day.
+    model: int_transactions_enriched
+    given:
+      - input: ref('stg_transactions')
+        rows:
+          - {transaction_id: 1, account_id: A1, transacted_at: "2026-07-31 19:59:59", amount: 10.00, debit_credit_indicator: C, status_code: P}
+          - {transaction_id: 2, account_id: A1, transacted_at: "2026-07-31 20:00:00", amount: 5.00, debit_credit_indicator: D, status_code: P}
+          - {transaction_id: 3, account_id: A1, transacted_at: "2026-07-31 23:59:59", amount: 1.00, debit_credit_indicator: D, status_code: R}
+      - input: ref('stg_accounts')
+        rows:
+          - {account_id: A1, customer_id: C1, branch_id: B1}
+    expect:
+      rows:
+        - {transaction_id: 1, business_date: "2026-07-31", signed_amount: 10.00, is_posted: true}
+        - {transaction_id: 2, business_date: "2026-08-01", signed_amount: -5.00, is_posted: true}
+        - {transaction_id: 3, business_date: "2026-08-01", signed_amount: -1.00, is_posted: false}
