@@ -1,0 +1,49 @@
+version: 2
+
+models:
+  - name: stg_branches
+    description: One row per branch. Renames and types only.
+    columns:
+      - name: branch_id
+        data_tests: [unique, not_null]
+
+  - name: stg_customers
+    description: Current customer state. History lives in the snap_customers snapshot.
+    columns:
+      - name: customer_id
+        data_tests: [unique, not_null]
+
+  - name: stg_accounts
+    description: One row per account. Renames and types only.
+    columns:
+      - name: account_id
+        data_tests: [unique, not_null]
+      - name: product_code
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["CHK", "SAV"]
+      - name: customer_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_customers')
+                field: customer_id
+
+  - name: stg_transactions
+    description: One row per transaction, all statuses. Renames and types only.
+    columns:
+      - name: transaction_id
+        data_tests: [unique, not_null]
+      - name: amount
+        data_tests: [not_null, non_negative]
+      - name: debit_credit_indicator
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["C", "D"]
+      - name: status_code
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["P", "R", "N"]

@@ -1,0 +1,26 @@
+version: 2
+
+sources:
+  - name: raw
+    description: >
+      Landing tables loaded from the nightly flat-file extracts (previously consumed by SSIS).
+      Column names, text-typed dates and amounts are kept exactly as delivered.
+    schema: raw
+    tables:
+      - name: branches
+        columns:
+          - name: BR_CD
+            data_tests: [unique, not_null]
+      - name: customers
+        description: Current state of each customer; LAST_UPD_DTTM changes on every edit.
+        columns:
+          - name: CUST_NO
+            data_tests: [unique, not_null]
+      - name: accounts
+        columns:
+          - name: ACCT_NO
+            data_tests: [unique, not_null]
+      - name: transactions
+        columns:
+          - name: TXN_ID
+            data_tests: [unique, not_null]
