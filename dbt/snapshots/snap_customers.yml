@@ -1,0 +1,12 @@
+snapshots:
+  - name: snap_customers
+    description: >
+      SCD2 history of customers. Timestamp strategy on LAST_UPD_DTTM, so valid-from times are
+      the source's own change times (not the time dbt happened to run), which keeps
+      point-in-time joins from fct_transactions correct.
+    relation: source('raw', 'customers')
+    config:
+      schema: snapshots
+      unique_key: CUST_NO
+      strategy: timestamp
+      updated_at: LAST_UPD_DTTM
