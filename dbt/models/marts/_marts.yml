@@ -1,0 +1,240 @@
+version: 2
+
+# Every mart has an enforced contract: dbt checks column names and types at build time and
+# fails before publishing a table whose shape drifted. Downstream BI depends on these shapes.
+
+models:
+  - name: dim_date
+    description: Calendar dimension, one row per day.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: date_key
+        data_type: integer
+        constraints: [{type: not_null}, {type: primary_key}]
+        data_tests: [unique]
+      - name: date_day
+        data_type: date
+        constraints: [{type: not_null}]
+      - name: calendar_year
+        data_type: integer
+      - name: calendar_quarter
+        data_type: integer
+      - name: calendar_month
+        data_type: integer
+      - name: day_of_month
+        data_type: integer
+      - name: iso_day_of_week
+        data_type: integer
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4, 5, 6, 7]
+                quote: false
+      - name: is_weekend
+        data_type: boolean
+
+  - name: dim_branch
+    description: One row per branch.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: branch_key
+        data_type: varchar
+        constraints: [{type: not_null}, {type: primary_key}]
+        data_tests: [unique]
+      - name: branch_id
+        data_type: varchar
+        constraints: [{type: not_null}]
+        data_tests: [unique]
+      - name: branch_name
+        data_type: varchar
+      - name: region_code
+        data_type: varchar
+      - name: opened_on
+        data_type: date
+
+  - name: dim_account
+    description: One row per account (type 1; account attributes do not need history).
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: account_key
+        data_type: varchar
+        constraints: [{type: not_null}, {type: primary_key}]
+        data_tests: [unique]
+      - name: account_id
+        data_type: varchar
+        constraints: [{type: not_null}]
+        data_tests: [unique]
+      - name: customer_id
+        data_type: varchar
+        constraints: [{type: not_null}]
+      - name: branch_id
+        data_type: varchar
+        constraints: [{type: not_null}]
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_branch')
+                field: branch_id
+      - name: product_type
+        data_type: varchar
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["CHECKING", "SAVINGS"]
+      - name: currency_code
+        data_type: varchar
+      - name: opened_on
+        data_type: date
+      - name: opening_balance
+        data_type: decimal(18,2)
+      - name: status_code
+        data_type: varchar
+
+  - name: dim_customer
+    description: >
+      SCD2 customer dimension from the snap_customers snapshot. One row per customer version;
+      valid_to is null and is_current is true for the live version.
+    config:
+      contract: {enforced: true}
+    data_tests:
+      - scd2_no_overlap:
+          arguments:
+            key: customer_id
+            valid_from: valid_from
+            valid_to: valid_to
+    columns:
+      - name: customer_key
+        data_type: varchar
+        constraints: [{type: not_null}, {type: primary_key}]
+        data_tests: [unique]
+      - name: customer_id
+        data_type: varchar
+        constraints: [{type: not_null}]
+      - name: customer_name
+        data_type: varchar
+      - name: email_address
+        data_type: varchar
+      - name: segment_code
+        data_type: varchar
+      - name: city
+        data_type: varchar
+      - name: valid_from
+        data_type: timestamp
+        constraints: [{type: not_null}]
+      - name: valid_to
+        data_type: timestamp
+      - name: is_current
+        data_type: boolean
+
+  - name: fct_transactions
+    description: >
+      One row per source transaction, all statuses (filter is_posted for reporting).
+      branch_key is the account's home branch, as in the legacy report. customer_key is the
+      customer version valid at transacted_at.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: transaction_id
+        data_type: bigint
+        constraints: [{type: not_null}, {type: primary_key}]
+        data_tests: [unique]
+      - name: account_key
+        data_type: varchar
+        constraints: [{type: not_null}]
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_account')
+                field: account_key
+      - name: customer_key
+        data_type: varchar
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_key
+      - name: branch_key
+        data_type: varchar
+        constraints: [{type: not_null}]
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_branch')
+                field: branch_key
+      - name: business_date_key
+        data_type: integer
+        constraints: [{type: not_null}]
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: business_date
+        data_type: date
+      - name: transacted_at
+        data_type: timestamp
+      - name: transaction_type
+        data_type: varchar
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["DEPOSIT", "TRANSFER_IN", "INTEREST", "CARD_PURCHASE", "WITHDRAWAL", "TRANSFER_OUT"]
+      - name: channel
+        data_type: varchar
+      - name: debit_credit_indicator
+        data_type: varchar
+      - name: status_code
+        data_type: varchar
+      - name: is_posted
+        data_type: boolean
+      - name: amount
+        data_type: decimal(18,2)
+        data_tests: [non_negative]
+      - name: signed_amount
+        data_type: decimal(18,2)
+
+  - name: fct_daily_balance
+    description: Closing balance per account per day it is open in the reporting window.
+    config:
+      contract: {enforced: true}
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [account_key, date_key]
+    columns:
+      - name: daily_balance_key
+        data_type: varchar
+        constraints: [{type: not_null}, {type: primary_key}]
+        data_tests: [unique]
+      - name: account_key
+        data_type: varchar
+        constraints: [{type: not_null}]
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_account')
+                field: account_key
+      - name: date_key
+        data_type: integer
+        constraints: [{type: not_null}]
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: account_id
+        data_type: varchar
+      - name: balance_date
+        data_type: date
+      - name: net_change
+        data_type: decimal(18,2)
+      - name: posted_txn_count
+        data_type: integer
+      - name: closing_balance
+        data_type: decimal(18,2)
+        constraints: [{type: not_null}]
