@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "harbor-point-migration"
+version = "0.1.0"
+description = "SQL Server stored procedures to dbt, with tests, contracts, GE and reconciliation."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Navya Sindhu" }]
+requires-python = ">=3.11"
+dependencies = [
+    "dbt-core==1.12.6",
+    "dbt-duckdb==1.11.1",
+    "duckdb==2.0.0",
+    "great_expectations==1.24.1",
+    "pandas==3.1.0",
+    "PyYAML==6.0.3",
+]
+
+[project.optional-dependencies]
+# The snowflake/redshift targets in profiles/ need dbt-snowflake or dbt-redshift, matching
+# dbt-core 1.12. They are deliberately not pinned here: they were never installed or tested.
+airflow = ["apache-airflow==3.3.2"]
+dev = [
+    "pytest==9.2.0",
+    "ruff==0.17.3",
+]
+
+[tool.setuptools]
+packages = ["datagen", "reconcile"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["dbt/target", "dbt/dbt_packages"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+# The repo has folders named after these libraries (airflow/, dbt/, great_expectations/);
+# make sure ruff still sorts the real libraries as third-party.
+known-third-party = ["airflow", "dbt", "great_expectations"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"

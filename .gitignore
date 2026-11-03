@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Local secrets
+.env
+
+# Generated data and build output
+warehouse/
+target/
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+logs/
+.airflow/
