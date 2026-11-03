@@ -1,0 +1,35 @@
+name: harbor_point
+version: "1.0.0"
+config-version: 2
+profile: harbor_point
+
+model-paths: ["models"]
+snapshot-paths: ["snapshots"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+# Single source of truth for the reporting window. The Python data generator and the
+# legacy runner read these same values, so the three never drift apart.
+vars:
+  reporting_start: "2026-07-01"
+  as_of_date: "2026-09-30"
+  # Transactions at or after this hour post to the next business day (legacy rule).
+  business_day_cutoff_hour: 20
+
+models:
+  harbor_point:
+    staging:
+      +schema: staging
+      +materialized: view
+    intermediate:
+      +schema: intermediate
+      +materialized: view
+    marts:
+      +schema: marts
+      +materialized: table
+
+data_tests:
+  harbor_point:
+    +severity: error
